@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require('express');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
@@ -50,9 +51,12 @@ async function connect() {
     }
     if (connection === 'close') {
       status = 'disconnected';
+      qrDataUrl = null;
       const code = lastDisconnect?.error?.output?.statusCode;
       if (code === DisconnectReason.loggedOut) {
-        log('Logged out. Delete auth folder and restart.');
+        log('Logged out. Naya QR ban raha hai...');
+        fs.rmSync('auth', { recursive: true, force: true });
+        setTimeout(connect, 2000);
       } else {
         setTimeout(connect, 3000);
       }
