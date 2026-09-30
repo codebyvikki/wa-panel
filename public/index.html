@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Group Creator</title>
+<style>
+  *{box-sizing:border-box;font-family:system-ui,sans-serif}
+  body{margin:0;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;justify-content:center;align-items:center;padding:16px}
+  .card{background:#f7f7fc;border-radius:24px;padding:28px;width:100%;max-width:420px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+  h1{margin:8px 0 4px;font-size:24px;text-align:center;color:#333}
+  .sub{text-align:center;color:#666;margin:0 0 20px}
+  input,textarea{width:100%;padding:14px;border:2px solid #ddd;border-radius:14px;font-size:16px;margin-bottom:12px;background:#fff}
+  textarea{min-height:90px;resize:vertical}
+  button{width:100%;padding:14px;border:0;border-radius:14px;font-size:17px;color:#fff;background:linear-gradient(90deg,#25d366,#128c7e);cursor:pointer}
+  button:disabled{opacity:.5}
+  .hide{display:none}
+  .badge{display:inline-block;padding:4px 10px;border-radius:99px;font-size:13px;background:#eee;margin-bottom:12px}
+  .ok{background:#c8f7d8;color:#0a6}
+  #qr{display:block;margin:0 auto 12px;max-width:100%}
+  #log{background:#111;color:#9f9;font:12px monospace;padding:10px;border-radius:12px;height:130px;overflow:auto;white-space:pre-wrap;margin-top:12px}
+  .err{color:#c00;text-align:center;min-height:20px}
+  label{font-size:13px;color:#555}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>WhatsApp Group Creator</h1>
+  <p class="sub">Professional Group Management</p>
+
+  <div id="login">
+    <input id="key" type="password" placeholder="Access key">
+    <button id="loginBtn">Login</button>
+    <p class="err" id="loginErr"></p>
+  </div>
+
+  <div id="panel" class="hide">
+    <span class="badge" id="badge">...</span>
+    <span class="badge" id="count"></span>
+    <img id="qr" class="hide" alt="QR">
+    <label>Group names (ek line me ek)</label>
+    <textarea id="names" placeholder="Class Group 1&#10;Class Group 2"></textarea>
+    <label>Members (country code ke saath, ek line me ek)</label>
+    <textarea id="members" placeholder="919XXXXXXXXX"></textarea>
+    <label>Gap (seconds, minimum 30)</label>
+    <input id="delay" type="number" value="45" min="30">
+    <button id="go">Create Groups</button>
+    <p class="err" id="err"></p>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = sessionStorage.getItem('t');
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'Content-Type': 'application/json', 'x-token': token || '' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Error');
+  return d;
+}
+
+function show() { $('login').classList.add('hide'); $('panel').classList.remove('hide'); poll(); setInterval(poll, 3000); }
+
+$('loginBtn').onclick = async () => {
+  try {
+    const d = await api('/api/login', { key: $('key').value });
+    token = d.token; sessionStorage.setItem('t', token); show();
+  } catch (e) { $('loginErr').textContent = e.message; }
+};
+
+async function poll() {
+  try {
+    const s = await api('/api/status');
+    $('badge').textContent = s.status;
+    $('badge').className = 'badge' + (s.status === 'connected' ? ' ok' : '');
+    $('count').textContent = `Today: ${s.createdToday}/${s.maxPerDay}`;
+    $('qr').classList.toggle('hide', !s.qr);
+    if (s.qr) $('qr').src = s.qr;
+    $('log').textContent = s.logs.join('\n');
+    $('go').disabled = s.running || s.status !== 'connected';
+    $('delay').min = s.minDelay;
+  } catch (e) { sessionStorage.removeItem('t'); location.reload(); }
+}
+
+$('go').onclick = async () => {
+  $('err').textContent = '';
+  try {
+    await api('/api/create', {
+      names: $('names').value.split('\n'),
+      members: $('members').value.split('\n'),
+      delay: $('delay').value,
+    });
+  } catch (e) { $('err').textContent = e.message; }
+};
+
+if (token) show();
+</script>
+</body>
+</html>
